@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Same logo as public/icon.svg, scaled 1.5x into the adaptive-icon safe zone (48 grid -> 72dp, centred). -->
+    <group android:scaleX="1.5" android:scaleY="1.5" android:translateX="18" android:translateY="18">
+        <path android:fillColor="#00000000" android:strokeColor="#FFFDF8" android:strokeWidth="2.7" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M30,7 C20,3 9,10 7,20 C5,27 8,32 12,36 M18,41 C28,45 39,38 41,28 C43,21 40,16 36,12" />
+        <path android:fillColor="#00000000" android:strokeColor="#FFFDF8" android:strokeWidth="2.7" android:pathData="M24,24 m-7,0 a7,7 0,1 0 14,0 a7,7 0,1 0 -14,0" />
+        <path android:fillColor="#FFFDF8" android:pathData="M35,5 m-3.5,0 a3.5,3.5 0,1 0 7,0 a3.5,3.5 0,1 0 -7,0" />
+        <path android:fillColor="#FFFDF8" android:pathData="M12,39 m-3.5,0 a3.5,3.5 0,1 0 7,0 a3.5,3.5 0,1 0 -7,0" />
+    </group>
+</vector>

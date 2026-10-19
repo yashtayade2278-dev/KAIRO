@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Kairo",
+  "short_name": "Kairo",
+  "description": "Daily check-ins, habit streaks and goal countdowns. Make Today Count.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFF8EE",
+  "theme_color": "#FFF8EE",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
