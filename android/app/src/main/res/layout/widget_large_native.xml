@@ -9,17 +9,17 @@
     </LinearLayout>
     <LinearLayout android:orientation="vertical" android:gravity="center_vertical" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
         <TextView android:id="@+id/widget_countdown" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Days left" android:textSize="28sp" android:fontFamily="sans-serif-medium" android:includeFontPadding="false"
+            android:text="30 days left" android:textSize="28sp" android:fontFamily="sans-serif-medium" android:includeFontPadding="false"
             android:textColor="#182B26" android:singleLine="true" android:ellipsize="end" />
         <TextView android:id="@+id/widget_target" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:textSize="12sp" android:textColor="#50635B" android:singleLine="true" android:ellipsize="end" />
         <ProgressBar android:id="@+id/widget_progress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent"
-            android:layout_height="4dp" android:layout_marginTop="5dp" android:progressTint="#507B65" android:progressBackgroundTint="#DAE3D9" />
+            android:layout_height="4dp" android:layout_marginTop="5dp" android:progress="35" android:progressTint="#507B65" android:progressBackgroundTint="#DAE3D9" />
     </LinearLayout>
     <LinearLayout android:id="@+id/widget_subjects" android:orientation="vertical" android:visibility="gone"
         android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="5dp" />
     <LinearLayout android:id="@+id/widget_footer" android:gravity="center_vertical" android:layout_width="match_parent" android:layout_height="wrap_content">
-        <TextView android:id="@+id/widget_streak" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+        <TextView android:id="@+id/widget_streak" android:text="3-day journal streak" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
             android:textSize="12sp" android:textColor="#50635B" android:singleLine="true" android:ellipsize="end" />
         <TextView android:id="@+id/widget_checkin" android:gravity="center" android:layout_width="wrap_content" android:layout_height="36dp"
             android:paddingStart="14dp" android:paddingEnd="14dp" android:background="@drawable/widget_button_background"

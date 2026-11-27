@@ -34,8 +34,8 @@ final class WidgetViews {
         int expanded = Math.round(280 * fontScale);
         if (Build.VERSION.SDK_INT >= 31) {
             Map<SizeF, RemoteViews> sizes = new LinkedHashMap<>();
-            sizes.put(new SizeF(120, 120), render(context, id, goal, Layout.COMPACT));
-            sizes.put(new SizeF(wide, 130), render(context, id, goal, Layout.WIDE));
+            sizes.put(new SizeF(135, 135), render(context, id, goal, Layout.COMPACT));
+            sizes.put(new SizeF(wide, 135), render(context, id, goal, Layout.WIDE));
             sizes.put(new SizeF(wide, expanded), render(context, id, goal, Layout.EXPANDED));
             return new RemoteViews(sizes);
         }

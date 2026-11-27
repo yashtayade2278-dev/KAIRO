@@ -5,5 +5,5 @@
     <string name="package_name">com.streakdown.app</string>
     <string name="custom_url_scheme">com.streakdown.app</string>
     <string name="widget_label_large">Kairo · Card</string>
-    <string name="widget_description">Your goal, streak and countdown with one-tap check-in.</string>
+    <string name="widget_description">Your countdown and journal streak. Enlarge the widget to see subject progress.</string>
 </resources>
