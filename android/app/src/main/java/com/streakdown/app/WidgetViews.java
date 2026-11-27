@@ -5,137 +5,141 @@ import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
+import android.os.Bundle;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.RelativeSizeSpan;
+import android.util.SizeF;
+import android.util.TypedValue;
+import android.view.View;
 import android.widget.RemoteViews;
-import org.json.JSONObject;
+
 import org.json.JSONArray;
+import org.json.JSONObject;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
+import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 
 final class WidgetViews {
-    // Same four palettes as the goal cards in the app (+ green when a goal is completed).
-    private static final int[] BG = { R.drawable.widget_bg_0, R.drawable.widget_bg_1, R.drawable.widget_bg_2, R.drawable.widget_bg_3, R.drawable.widget_bg_4 };
-    private static final int[] BAR = { R.id.widget_progress_0, R.id.widget_progress_1, R.id.widget_progress_2, R.id.widget_progress_3, R.id.widget_progress_4 };
-    private static final int[] ACCENT = { 0xFFE9784E, 0xFFD85D87, 0xFF4389C8, 0xFFB88749, 0xFF3E9B5B };
-    private static void applyPalette(RemoteViews v, int p, int progress, boolean showBar) {
-        v.setInt(R.id.widget_root, "setBackgroundResource", BG[p]);
-        v.setTextColor(R.id.widget_streak_value, ACCENT[p]);
-        for (int i = 0; i < BAR.length; i++) v.setViewVisibility(BAR[i], (showBar && i == p) ? android.view.View.VISIBLE : android.view.View.GONE);
-        if (showBar) v.setProgressBar(BAR[p], 100, progress, false);
-    }
-    private static int paletteIndex(Context c, String goalId) {
-        org.json.JSONArray all = WidgetStore.getGoals(c);
-        for (int i = 0; i < all.length(); i++) { JSONObject o = all.optJSONObject(i); if (o != null && goalId.equals(o.optString("id"))) return i % 4; }
-        return 0;
-    }
     static final String ACTION_CHECK_IN = "com.streakdown.app.WIDGET_CHECK_IN";
-    static RemoteViews create(Context c, int widgetId, boolean large) {
-        try { return build(c, widgetId, large); }
-        catch (Throwable t) {
-            RemoteViews f = new RemoteViews(c.getPackageName(), R.layout.widget_large_native);
-            f.setTextViewText(R.id.widget_title, "Kairo");
-            f.setTextViewText(R.id.widget_countdown, "Tap to open");
-            return f;
+    private enum Layout { COMPACT, WIDE, EXPANDED }
+
+    static RemoteViews create(Context context, int id) {
+        JSONObject goal = WidgetStore.findGoal(context, WidgetStore.goalIdForWidget(context, id));
+        float fontScale = Math.max(1f, context.getResources().getConfiguration().fontScale);
+        int wide = Math.round(245 * fontScale);
+        int expanded = Math.round(280 * fontScale);
+        if (Build.VERSION.SDK_INT >= 31) {
+            Map<SizeF, RemoteViews> sizes = new LinkedHashMap<>();
+            sizes.put(new SizeF(120, 120), render(context, id, goal, Layout.COMPACT));
+            sizes.put(new SizeF(wide, 130), render(context, id, goal, Layout.WIDE));
+            sizes.put(new SizeF(wide, expanded), render(context, id, goal, Layout.EXPANDED));
+            return new RemoteViews(sizes);
         }
+        Bundle opts = AppWidgetManager.getInstance(context).getAppWidgetOptions(id);
+        return new RemoteViews(
+                render(context, id, goal, choose(opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH),
+                        opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT), wide, expanded)),
+                render(context, id, goal, choose(opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH),
+                        opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT), wide, expanded)));
     }
-    private static RemoteViews build(Context c, int widgetId, boolean large) {
+
+    private static Layout choose(int width, int height, int wide, int expanded) {
+        if (width < wide) return Layout.COMPACT;
+        return height >= expanded ? Layout.EXPANDED : Layout.WIDE;
+    }
+
+    private static RemoteViews render(Context c, int id, JSONObject goal, Layout layout) {
         RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget_large_native);
-        String goalId = WidgetStore.goalIdForWidget(c, widgetId);
-        JSONObject g = WidgetStore.findGoal(c, goalId);
-        if (g == null) {
-            showSubjects(c, v, null);
+        Intent open = new Intent(c, MainActivity.class);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+        PendingIntent launch = PendingIntent.getActivity(c, id, open, flags);
+        v.setOnClickPendingIntent(R.id.widget_root, launch);
+        boolean compact = layout == Layout.COMPACT;
+        v.removeAllViews(R.id.widget_subjects);
+        v.setViewVisibility(R.id.widget_subjects, View.GONE);
+        v.setViewVisibility(R.id.widget_progress, compact || goal == null ? View.GONE : View.VISIBLE);
+        if (goal == null) {
             v.setTextViewText(R.id.widget_title, "Kairo");
-            v.setTextViewText(R.id.widget_streak_icon, "");
-            v.setTextViewText(R.id.widget_streak_value, "");
-            v.setTextViewText(R.id.widget_streak_unit, "");
-            v.setTextViewText(R.id.widget_countdown_value, "");
-            v.setTextViewText(R.id.widget_countdown, "Create a goal in Kairo first");
-            v.setTextViewText(R.id.widget_target, "");
-            applyPalette(v, 0, 0, false);
-            v.setViewVisibility(R.id.widget_countdown_value, android.view.View.VISIBLE);
-            v.setViewVisibility(R.id.widget_checkin, android.view.View.VISIBLE);
+            v.setTextViewText(R.id.widget_countdown, "Choose a goal");
+            v.setTextViewTextSize(R.id.widget_countdown, TypedValue.COMPLEX_UNIT_SP, 17);
+            v.setViewVisibility(R.id.widget_streak, View.GONE);
             v.setTextViewText(R.id.widget_checkin, "Open app");
-            Intent open = c.getPackageManager().getLaunchIntentForPackage(c.getPackageName());
-            if (open != null) { PendingIntent launch = PendingIntent.getActivity(c, widgetId + 20000, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE); v.setOnClickPendingIntent(R.id.widget_root, launch); v.setOnClickPendingIntent(R.id.widget_title, launch); v.setOnClickPendingIntent(R.id.widget_streak_icon, launch); v.setOnClickPendingIntent(R.id.widget_streak_value, launch); v.setOnClickPendingIntent(R.id.widget_streak_unit, launch); v.setOnClickPendingIntent(R.id.widget_countdown_value, launch); v.setOnClickPendingIntent(R.id.widget_countdown, launch); }
+            v.setOnClickPendingIntent(R.id.widget_checkin, launch);
             return v;
         }
-        showSubjects(c, v, g.optJSONArray("subjects"));
-        String title = g.optString("title", "Untitled goal");
-        int streak = WidgetStore.activeStreak(g);
+
         String today = WidgetStore.today();
-        JSONObject entries = g.optJSONObject("journal");
-        boolean checked = entries != null && entries.has(today);
-        int days=0; String target=g.optString("targetDate", today);
+        String target = goal.optString("targetDate", today);
+        int days = 0;
+        int progress = 0;
+        String targetLabel = target;
         try {
-            java.text.SimpleDateFormat fmt=new java.text.SimpleDateFormat("yyyy-MM-dd",Locale.US); fmt.setLenient(false);
-            Calendar a=Calendar.getInstance(), b=Calendar.getInstance(); a.setTime(fmt.parse(today)); b.setTime(fmt.parse(target));
-            days=(int)Math.round((b.getTimeInMillis()-a.getTimeInMillis())/86400000.0);
-        } catch(Exception ignored) {}
-        String targetText = ""; int progress = 0;
-        try {
-            SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd", Locale.US); iso.setLenient(false);
-            java.util.Date t = iso.parse(target);
-            targetText = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(t);
-            String created = g.optString("createdAt", today);
-            java.util.Date s0 = iso.parse(created.length() >= 10 ? created.substring(0, 10) : today);
-            long total = t.getTime() - s0.getTime(), done = iso.parse(today).getTime() - s0.getTime();
-            progress = total <= 0 ? (days <= 0 ? 100 : 0) : (int) Math.max(0, Math.min(100, (done * 100L) / total));
-        } catch (Exception ignored) {}
-        if (days <= 0) progress = 100;
-        v.setTextViewText(R.id.widget_title, title);
-        v.setTextViewText(R.id.widget_target, days > 0 ? "until " + targetText : targetText);
-        applyPalette(v, days <= 0 ? 4 : paletteIndex(c, goalId), progress, true);
-        v.setTextViewText(R.id.widget_streak_icon, "🔥");
-        v.setTextViewText(R.id.widget_streak_value, String.valueOf(streak));
-        v.setTextViewText(R.id.widget_streak_unit, "Journal streak");
-        boolean completed = days <= 0;
-        if (completed) {
-            // Goal reached: no "0" counter and no Check In button, just a clear completed message.
-            v.setViewVisibility(R.id.widget_countdown_value, android.view.View.VISIBLE);
-            v.setTextViewText(R.id.widget_countdown_value, "\u2713");
-            v.setViewVisibility(R.id.widget_checkin, android.view.View.GONE);
-            v.setTextViewText(R.id.widget_countdown, "Goal completed");
-            v.setTextViewText(R.id.widget_target, targetText);
-        } else {
-            v.setViewVisibility(R.id.widget_countdown_value, android.view.View.VISIBLE);
-            v.setViewVisibility(R.id.widget_checkin, android.view.View.VISIBLE);
-            v.setTextViewText(R.id.widget_countdown_value, String.valueOf(days));
-            v.setTextViewText(R.id.widget_countdown, "days left");
-            v.setTextViewText(R.id.widget_checkin, checked ? "Checked in \u2713" : "Check In");
-            v.setBoolean(R.id.widget_checkin, "setEnabled", !checked);
+            SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            Date due = iso.parse(target);
+            Date now = iso.parse(today);
+            days = (int) Math.round((due.getTime() - now.getTime()) / 86400000.0);
+            targetLabel = new SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(due);
+            Date start = iso.parse(goal.optString("createdAt", today));
+            double duration = due.getTime() - start.getTime();
+            progress = duration <= 0 ? 100 : (int) Math.max(0, Math.min(100, 100 * (now.getTime() - start.getTime()) / duration));
+        } catch (java.text.ParseException ignored) { }
+        boolean complete = days <= 0;
+        String streak = WidgetStore.activeStreak(goal) + "-day journal streak";
+        v.setTextViewText(R.id.widget_title, goal.optString("title"));
+        String number = String.valueOf(days);
+        SpannableString countdown = new SpannableString(complete ? "Goal complete" : number + (days == 1 ? " day left" : " days left"));
+        if (!complete) countdown.setSpan(new RelativeSizeSpan(0.52f), number.length(), countdown.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        v.setTextViewText(R.id.widget_countdown, countdown);
+        v.setTextViewTextSize(R.id.widget_countdown, TypedValue.COMPLEX_UNIT_SP, complete ? 19 : compact ? 26 : 32);
+        v.setTextViewText(R.id.widget_target, compact ? streak : "Due " + targetLabel);
+        v.setTextViewText(R.id.widget_streak, streak);
+        v.setViewVisibility(R.id.widget_streak, compact ? View.GONE : View.VISIBLE);
+        v.setProgressBar(R.id.widget_progress, 100, progress, false);
+        JSONArray subjects = goal.optJSONArray("subjects");
+        if (layout == Layout.EXPANDED && subjects != null && subjects.length() > 0) {
+            v.setViewVisibility(R.id.widget_subjects, View.VISIBLE);
+            addRow(c, v, "Subject", "To cover", "Awaiting 1st rev.");
+            for (int i = 0; i < subjects.length(); i++) {
+                JSONObject subject = subjects.optJSONObject(i);
+                if (subject == null) continue;
+                JSONArray chapters = subject.optJSONArray("chapters");
+                int cover = 0;
+                int revise = 0;
+                for (int j = 0; chapters != null && j < chapters.length(); j++) {
+                    JSONObject chapter = chapters.optJSONObject(j);
+                    if (chapter == null) continue;
+                    JSONArray revisions = chapter.optJSONArray("revisions");
+                    if (chapter.optString("coveredAt").isEmpty()) cover++;
+                    else if (revisions == null || revisions.length() == 0) revise++;
+                }
+                addRow(c, v, subject.optString("name"), String.valueOf(cover), String.valueOf(revise));
+            }
         }
-        Intent check = new Intent(c, MainActivity.class).setAction(ACTION_CHECK_IN);
-        check.putExtra("goal_id", goalId);
-        v.setOnClickPendingIntent(R.id.widget_checkin, PendingIntent.getActivity(c, widgetId, check,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
-        Intent open = c.getPackageManager().getLaunchIntentForPackage(c.getPackageName());
-        if(open!=null) { PendingIntent launch = PendingIntent.getActivity(c,widgetId+10000,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE); v.setOnClickPendingIntent(R.id.widget_root,launch); v.setOnClickPendingIntent(R.id.widget_title,launch); v.setOnClickPendingIntent(R.id.widget_streak_icon,launch); v.setOnClickPendingIntent(R.id.widget_streak_value,launch); v.setOnClickPendingIntent(R.id.widget_streak_unit,launch); v.setOnClickPendingIntent(R.id.widget_countdown_value,launch); v.setOnClickPendingIntent(R.id.widget_countdown,launch); }
+        JSONObject entries = goal.optJSONObject("journal");
+        boolean checked = entries != null && entries.has(today);
+        Intent journal = new Intent(c, MainActivity.class).setAction(ACTION_CHECK_IN)
+                .putExtra("goal_id", goal.optString("id"));
+        v.setViewVisibility(R.id.widget_checkin, complete ? View.GONE : View.VISIBLE);
+        v.setTextViewText(R.id.widget_checkin, checked ? "Checked in ✓" : "Check in");
+        v.setOnClickPendingIntent(R.id.widget_checkin, checked ? launch : PendingIntent.getActivity(c, id, journal, flags));
         return v;
     }
-    private static void showSubjects(Context context, RemoteViews views, JSONArray subjects) {
-        views.removeAllViews(R.id.widget_subjects);
-        boolean visible = subjects != null && subjects.length() > 0;
-        views.setViewVisibility(R.id.widget_subjects, visible ? android.view.View.VISIBLE : android.view.View.GONE);
-        if (!visible) return;
-        for (int i = 0; i < subjects.length(); i++) {
-            JSONObject subject = subjects.optJSONObject(i);
-            if (subject == null) continue;
-            JSONArray chapters = subject.optJSONArray("chapters");
-            int toCover = 0;
-            int awaiting = 0;
-            for (int j = 0; chapters != null && j < chapters.length(); j++) {
-                JSONObject chapter = chapters.optJSONObject(j);
-                if (chapter == null) continue;
-                JSONArray revisions = chapter.optJSONArray("revisions");
-                if (chapter.optString("coveredAt").isEmpty()) toCover++;
-                else if (revisions == null || revisions.length() == 0) awaiting++;
-            }
-            RemoteViews row = new RemoteViews(context.getPackageName(), R.layout.widget_subject_row);
-            row.setTextViewText(R.id.subject_name, subject.optString("name"));
-            row.setTextViewText(R.id.subject_counts, toCover + " to cover · " + awaiting + " awaiting 1st revision");
-            views.addView(R.id.widget_subjects, row);
-        }
+
+    private static void addRow(Context c, RemoteViews parent, String name, String cover, String revision) {
+        RemoteViews row = new RemoteViews(c.getPackageName(), R.layout.widget_subject_row);
+        row.setTextViewText(R.id.subject_name, name);
+        row.setTextViewText(R.id.subject_cover, cover);
+        row.setTextViewText(R.id.subject_revision, revision);
+        parent.addView(R.id.widget_subjects, row);
     }
-    static void update(Context c, AppWidgetManager m, int[] ids, boolean large) { for(int id:ids) m.updateAppWidget(id,create(c,id,large)); }
-    static void refresh(Context c, Class<?> provider, boolean large) { AppWidgetManager m=AppWidgetManager.getInstance(c); int[] ids=m.getAppWidgetIds(new ComponentName(c,provider)); update(c,m,ids,large); }
+
+    static void refresh(Context c, Class<?> provider) {
+        AppWidgetManager manager = AppWidgetManager.getInstance(c);
+        for (int id : manager.getAppWidgetIds(new ComponentName(c, provider)))
+            manager.updateAppWidget(id, create(c, id));
+    }
 }
