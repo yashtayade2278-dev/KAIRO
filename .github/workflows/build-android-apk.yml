@@ -16,8 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    outputs:
-      distributable: ${{ steps.identity.outputs.distributable }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -62,13 +60,16 @@ jobs:
           fi
           keytool -list -keystore "$store" -alias kairo -storepass:env STORE_PASS >/dev/null
           echo "::add-mask::$STORE_PASS"
-          echo "KAIRO_STORE_PASSWORD=$STORE_PASS" >> "$GITHUB_ENV"
-          echo "KAIRO_KEYSTORE=$store" >> "$GITHUB_ENV"
+          printf %s "$STORE_PASS" > "$RUNNER_TEMP/kairo-build-password"
           echo "distributable=$distributable" >> "$GITHUB_OUTPUT"
       - name: Build consecutive releases
         working-directory: android
         run: |
           set -eu
+          export KAIRO_KEYSTORE="$RUNNER_TEMP/kairo.p12"
+          export KAIRO_STORE_PASSWORD
+          KAIRO_STORE_PASSWORD=$(cat "$RUNNER_TEMP/kairo-build-password")
+          trap 'rm -f "$KAIRO_KEYSTORE" "$RUNNER_TEMP/kairo-build-password"' EXIT
           chmod +x gradlew
           mkdir -p ../build-check
           export KAIRO_VERSION_CODE=$((GITHUB_RUN_NUMBER * 2))
@@ -84,7 +85,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Verify side-by-side restore and in-place update on Android 12
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 31
           arch: x86_64
