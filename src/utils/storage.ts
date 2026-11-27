@@ -8,7 +8,7 @@ import {
   HomeWidget,
   applyCheckIn,
   calculateActiveStreak,
-  formatDateKey,
+  JournalEntry,
 } from '../types.ts';
 
 const GOALS_STORAGE_KEY = 'streakdown_goals_v1';
@@ -24,21 +24,17 @@ function notifyDataChanged() {
 export function loadGoals(simulatedDate: Date = new Date()): Goal[] {
   try {
     const raw = localStorage.getItem(GOALS_STORAGE_KEY);
-    if (!raw) {
-      saveGoals([], false);
-      return [];
-    }
+    if (!raw) return [];
     const stored: Goal[] = JSON.parse(raw);
     // Remove only the two demonstration goals from older app versions.
     // Keep any goals the user created themselves.
     const goals = stored.filter((g) => g.id !== 'goal-seed-1' && g.id !== 'goal-seed-2');
-    if (goals.length !== stored.length) saveGoals(goals, false);
+
     return goals.map((g) => ({
       ...g,
-      currentStreak: calculateActiveStreak(g.checkIns, simulatedDate),
+      currentStreak: calculateActiveStreak(Object.keys(g.journal ?? {}), simulatedDate),
     }));
   } catch {
-    saveGoals([], false);
     return [];
   }
 }
@@ -52,22 +48,15 @@ function syncGoalsToNative(goals: Goal[]): void {
   }
 }
 
-export function replaceGoalsFromNative(goals: Goal[]): void {
-  try {
-    localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(goals));
-    notifyDataChanged();
-  } catch (err) {
-    console.error('Failed to import native widget changes:', err);
-  }
-}
-
-export function saveGoals(goals: Goal[], notify = true): void {
+export function saveGoals(goals: Goal[], notify = true): boolean {
   try {
     localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(goals));
     syncGoalsToNative(goals);
     if (notify) notifyDataChanged();
+    return true;
   } catch (err) {
     console.error('Failed to save goals to localStorage:', err);
+    return false;
   }
 }
 
@@ -103,16 +92,16 @@ export function createGoal(
   currentDate: Date = new Date()
 ): Goal {
   const goals = loadGoals(currentDate);
-  const todayKey = formatDateKey(currentDate);
+
   const newGoal: Goal = {
     id: `goal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     title: data.title.trim(),
     description: data.description?.trim() || undefined,
     targetDate: data.targetDate,
     createdAt: new Date().toISOString(),
-    checkIns: [todayKey], // Auto checked-in on creation day
-    currentStreak: 1, // Streak immediately jumps to 1
-    lastCheckInDate: todayKey,
+    checkIns: [],
+    journal: {},
+    currentStreak: 0,
   };
 
   const updatedGoals = [newGoal, ...goals];
@@ -140,11 +129,6 @@ export function updateGoal(
         : current.description,
   };
 
-  // Recalculate streak if check-ins updated
-  if (updates.checkIns) {
-    updated.currentStreak = calculateActiveStreak(updated.checkIns, currentDate);
-  }
-
   goals[idx] = updated;
   saveGoals(goals);
   return updated;
@@ -161,19 +145,18 @@ export function deleteGoal(id: string, currentDate: Date = new Date()): void {
   saveWidgets(updatedWidgets);
 }
 
-export function checkInGoal(id: string, currentDate: Date = new Date()): Goal | null {
+export function checkInGoal(id: string, entry: JournalEntry, currentDate: Date = new Date()): Goal | null {
   const goals = loadGoals(currentDate);
   const goal = goals.find((g) => g.id === id);
   if (!goal) return null;
 
-  const updated = applyCheckIn(goal, currentDate);
+  const updated = applyCheckIn(goal, entry, currentDate);
   if (!updated) {
     return null; // Already checked in today
   }
 
   const updatedGoals = goals.map((g) => (g.id === id ? updated : g));
-  saveGoals(updatedGoals);
-  return updated;
+  return saveGoals(updatedGoals) ? updated : null;
 }
 
 export function pinWidget(goalId: string): HomeWidget {

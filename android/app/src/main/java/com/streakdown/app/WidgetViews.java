@@ -59,13 +59,14 @@ final class WidgetViews {
         }
         String title = g.optString("title", "Untitled goal");
         int streak = WidgetStore.activeStreak(g);
-        String today = WidgetStore.today(); boolean checked = false;
-        org.json.JSONArray arr=g.optJSONArray("checkIns"); if(arr!=null) for(int i=0;i<arr.length();i++) if(today.equals(arr.optString(i))) checked=true;
+        String today = WidgetStore.today();
+        JSONObject entries = g.optJSONObject("journal");
+        boolean checked = entries != null && entries.has(today);
         int days=0; String target=g.optString("targetDate", today);
         try {
             java.text.SimpleDateFormat fmt=new java.text.SimpleDateFormat("yyyy-MM-dd",Locale.US); fmt.setLenient(false);
             Calendar a=Calendar.getInstance(), b=Calendar.getInstance(); a.setTime(fmt.parse(today)); b.setTime(fmt.parse(target));
-            days=(int)((b.getTimeInMillis()-a.getTimeInMillis())/86400000L);
+            days=(int)Math.round((b.getTimeInMillis()-a.getTimeInMillis())/86400000.0);
         } catch(Exception ignored) {}
         String targetText = ""; int progress = 0;
         try {
@@ -83,7 +84,7 @@ final class WidgetViews {
         applyPalette(v, days <= 0 ? 4 : paletteIndex(c, goalId), progress, true);
         v.setTextViewText(R.id.widget_streak_icon, "🔥");
         v.setTextViewText(R.id.widget_streak_value, String.valueOf(streak));
-        v.setTextViewText(R.id.widget_streak_unit, streak == 1 ? "day" : "days");
+        v.setTextViewText(R.id.widget_streak_unit, "Journal streak");
         boolean completed = days <= 0;
         if (completed) {
             // Goal reached: no "0" counter and no Check In button, just a clear completed message.
@@ -100,8 +101,10 @@ final class WidgetViews {
             v.setTextViewText(R.id.widget_checkin, checked ? "Checked in \u2713" : "Check In");
             v.setBoolean(R.id.widget_checkin, "setEnabled", !checked);
         }
-        Intent check = new Intent(c, WidgetCheckInReceiver.class); check.setAction(ACTION_CHECK_IN); check.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId); check.putExtra("goal_id", goalId);
-        v.setOnClickPendingIntent(R.id.widget_checkin, PendingIntent.getBroadcast(c, widgetId, check, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+        Intent check = new Intent(c, MainActivity.class).setAction(ACTION_CHECK_IN);
+        check.putExtra("goal_id", goalId);
+        v.setOnClickPendingIntent(R.id.widget_checkin, PendingIntent.getActivity(c, widgetId, check,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
         Intent open = c.getPackageManager().getLaunchIntentForPackage(c.getPackageName());
         if(open!=null) { PendingIntent launch = PendingIntent.getActivity(c,widgetId+10000,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE); v.setOnClickPendingIntent(R.id.widget_root,launch); v.setOnClickPendingIntent(R.id.widget_title,launch); v.setOnClickPendingIntent(R.id.widget_streak_icon,launch); v.setOnClickPendingIntent(R.id.widget_streak_value,launch); v.setOnClickPendingIntent(R.id.widget_streak_unit,launch); v.setOnClickPendingIntent(R.id.widget_countdown_value,launch); v.setOnClickPendingIntent(R.id.widget_countdown,launch); }
         return v;

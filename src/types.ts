@@ -2,7 +2,15 @@
  * Kairo - Type Definitions and Date/Streak Utilities
  */
 
+export const planOptions = ['All of it', 'Some of it', 'None of it', 'I had no plan today'] as const;
+export type PlanOutcome = typeof planOptions[number];
+export interface JournalEntry {
+  outcome: PlanOutcome;
+  note: string;
+}
+
 export interface Goal {
+  journal?: Record<string, JournalEntry>;
   id: string;
   title: string;
   description?: string;
@@ -139,28 +147,20 @@ export function calculateActiveStreak(
  */
 export function hasCheckedInOnDate(goal: Goal, date: Date = new Date()): boolean {
   const key = formatDateKey(date);
-  return goal.checkIns.includes(key);
+  return Boolean(goal.journal?.[key]);
 }
 
 /**
  * Process a check-in for a goal on a given date
  * Returns the updated Goal or null if already checked in today
  */
-export function applyCheckIn(goal: Goal, date: Date = new Date()): Goal | null {
-  const dateKey = formatDateKey(date);
-  if (goal.checkIns.includes(dateKey)) {
-    return null; // Already checked in on this date
-  }
+export function applyCheckIn(goal: Goal, entry: JournalEntry, date: Date = new Date()): Goal | null {
+  const key = formatDateKey(date);
+  const note = entry.note.trim();
+  if (!note || !planOptions.includes(entry.outcome) || goal.journal?.[key] || isGoalCompleted(goal, date)) return null;
 
-  const updatedCheckIns = [...goal.checkIns, dateKey].sort();
-  const newStreak = calculateActiveStreak(updatedCheckIns, date);
-
-  return {
-    ...goal,
-    checkIns: updatedCheckIns,
-    currentStreak: newStreak,
-    lastCheckInDate: dateKey,
-  };
+  const journal = { ...goal.journal, [key]: { outcome: entry.outcome, note } };
+  return { ...goal, journal, currentStreak: calculateActiveStreak(Object.keys(journal), date), lastCheckInDate: key };
 }
 
 /**
@@ -215,7 +215,7 @@ export function calculateGoalCompletionStats(
   goal: Goal,
   currentDate: Date = new Date()
 ): GoalCompletionStats {
-  const longestStreak = calculateLongestStreak(goal.checkIns);
+  const longestStreak = calculateLongestStreak(Object.keys(goal.journal ?? {}));
 
   let startKey: string;
   try {
@@ -236,7 +236,7 @@ export function calculateGoalCompletionStats(
   const diffDays = Math.round((endMid.getTime() - startMid.getTime()) / (1000 * 60 * 60 * 24));
   const totalDays = Math.max(1, diffDays);
 
-  const checkInsSet = new Set(goal.checkIns);
+  const checkInsSet = new Set([...goal.checkIns, ...Object.keys(goal.journal ?? {})]);
   let checkedInCount = 0;
   const cursor = new Date(startMid);
 

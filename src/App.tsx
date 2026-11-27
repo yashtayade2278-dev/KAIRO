@@ -4,14 +4,18 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Goal } from './types.ts';
-import { loadGoals, createGoal, updateGoal, deleteGoal, checkInGoal, STORAGE_CHANGE_EVENT, replaceGoalsFromNative } from './utils/storage.ts';
+import { JournalForm } from './components/JournalForm';
+import { Goal, hasCheckedInOnDate, isGoalCompleted } from './types.ts';
+import { loadGoals, createGoal, updateGoal, deleteGoal, checkInGoal, STORAGE_CHANGE_EVENT, saveGoals } from './utils/storage.ts';
 import { AndroidFrame } from './components/AndroidFrame.tsx';
 import { MainScreen } from './components/MainScreen.tsx';
 
 export default function App() {
   const [goals, setGoals] = useState<Goal[]>(() => loadGoals(new Date()));
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
+
+  const [journalId, setJournalId] = useState<string | null>(null);
+  const journalGoal = goals.find(goal => goal.id === journalId);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentDate((p) => (new Date().toDateString() === p.toDateString() ? p : new Date())), 60000);
@@ -21,55 +25,51 @@ export default function App() {
   const refreshData = useCallback(() => setGoals(loadGoals(new Date())), []);
 
   useEffect(() => {
-    refreshData();
-    const syncFromNative = async () => {
-      try {
-        const nativePlugin = (window as any)?.Capacitor?.Plugins?.StreakDownNative;
-        if (!nativePlugin?.getGoals) return;
-        const result = await nativePlugin.getGoals();
-        if (Array.isArray(result?.goals)) {
-          // Ignore legacy demo goals from older native storage; never seed examples.
-          const nativeGoals = (result.goals as Goal[]).filter(
-            (goal) => goal.id !== 'goal-seed-1' && goal.id !== 'goal-seed-2'
-          );
-          const hadLegacySamples = (result.goals as Goal[]).some(
-            (goal) => goal.id === 'goal-seed-1' || goal.id === 'goal-seed-2'
-          );
-          if (nativeGoals.length > 0) {
-            // Import genuine native goals before syncing the cleaned list back.
-            replaceGoalsFromNative(nativeGoals);
-            refreshData();
-          }
-          if (hadLegacySamples) {
-            // Remove only known demo records. If the native list had no real goals,
-            // preserve any real goals already stored by the web app.
-            const cleanGoals = nativeGoals.length > 0 ? nativeGoals : loadGoals(new Date());
-            await nativePlugin.syncGoals?.({ goals: cleanGoals });
-          }
-        }
-      } catch {
-        // Native bridge is unavailable in browser preview.
+    const plugin = (window as any)?.Capacitor?.Plugins?.StreakDownNative;
+    const listener = plugin?.addListener('openJournal', ({ goalId }: { goalId: string }) => setJournalId(goalId));
+    // Widgets only read the native mirror now. Import older widget check-ins once.
+    let active = true;
+    async function migrate() {
+      if (!plugin || localStorage.getItem('kairo_journal_migrated')) return;
+      const { goals: nativeGoals } = await plugin.getGoals();
+      if (!active) return;
+      const merged = new Map(loadGoals().map(goal => [goal.id, goal]));
+      for (const goal of nativeGoals as Goal[]) {
+        if (goal.id === 'goal-seed-1' || goal.id === 'goal-seed-2') continue;
+        const local = merged.get(goal.id);
+        merged.set(goal.id, { ...goal, ...local,
+          checkIns: [...new Set([...goal.checkIns, ...(local?.checkIns ?? [])])],
+          journal: { ...goal.journal, ...local?.journal },
+        });
       }
-    };
-    void syncFromNative();
-    const handleVisibility = () => { if (document.visibilityState === 'visible') void syncFromNative(); };
+      if (saveGoals([...merged.values()])) localStorage.setItem('kairo_journal_migrated', '1');
+    }
+    void migrate().catch(console.error);
+    const handleVisibility = () => { if (document.visibilityState === 'visible') setCurrentDate(new Date()); };
     const handleStorageChange = () => refreshData();
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener(STORAGE_CHANGE_EVENT, handleStorageChange);
     return () => {
+      active = false;
+      void listener?.then((handle: { remove: () => void }) => handle.remove());
       window.removeEventListener(STORAGE_CHANGE_EVENT, handleStorageChange);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [refreshData]);
 
-  const handleCheckIn = (goalId: string) => { checkInGoal(goalId, new Date()); refreshData(); };
   const handleAddGoal = (data: { title: string; description?: string; targetDate: string }) => { createGoal(data, new Date()); refreshData(); };
   const handleEditGoal = (id: string, updates: Partial<Goal>) => { updateGoal(id, updates, new Date()); refreshData(); };
   const handleDeleteGoal = (id: string) => { deleteGoal(id, new Date()); refreshData(); };
 
   return (
     <AndroidFrame>
-      <MainScreen goals={goals} simulatedDate={currentDate} onCheckIn={handleCheckIn} onAddGoal={handleAddGoal} onEditGoal={handleEditGoal} onDeleteGoal={handleDeleteGoal} />
+      <MainScreen goals={goals} simulatedDate={currentDate} onCheckIn={setJournalId} onAddGoal={handleAddGoal} onEditGoal={handleEditGoal} onDeleteGoal={handleDeleteGoal} />
+      {journalGoal && !hasCheckedInOnDate(journalGoal, currentDate) && !isGoalCompleted(journalGoal, currentDate) &&
+        <JournalForm key={journalGoal.id} goal={journalGoal} onClose={() => setJournalId(null)} onSave={entry => {
+          if (!checkInGoal(journalGoal.id, entry)) return false;
+          setJournalId(null);
+          return true;
+        }} />}
     </AndroidFrame>
   );
 }

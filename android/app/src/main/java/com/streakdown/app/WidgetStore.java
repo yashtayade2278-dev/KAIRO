@@ -58,40 +58,14 @@ final class WidgetStore {
     }
     static String goalIdForWidget(Context c, int widgetId) { return prefs(c).getString(MAP + widgetId, ""); }
     static void setGoalForWidget(Context c, int widgetId, String goalId) { prefs(c).edit().putString(MAP + widgetId, goalId).apply(); }
-    static boolean checkIn(Context c, String goalId) {
-        JSONArray goals = getGoals(c); boolean changed = false;
-        for (int i=0; i<goals.length(); i++) {
-            JSONObject g = goals.optJSONObject(i);
-            if (g == null || !goalId.equals(g.optString("id"))) continue;
-            try {
-                JSONArray old = g.optJSONArray("checkIns"); if (old == null) old = new JSONArray();
-                String today = today();
-                for (int j=0; j<old.length(); j++) if (today.equals(old.optString(j))) return false;
-                old.put(today);
-                // Count consecutive dates backwards from today, matching the web app's streak rule.
-                java.util.HashSet<String> days = new java.util.HashSet<>();
-                for (int j=0; j<old.length(); j++) days.add(old.optString(j));
-                Calendar cal = Calendar.getInstance(); int streak = 0;
-                while (true) {
-                    String key = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.getTime());
-                    if (!days.contains(key)) break;
-                    streak++; cal.add(Calendar.DAY_OF_YEAR, -1);
-                }
-                g.put("checkIns", old); g.put("currentStreak", streak); g.put("lastCheckInDate", today); changed=true;
-            } catch (JSONException ignored) {}
-        }
-        if (changed) saveGoals(c, goals);
-        return changed;
-    }
     static int activeStreak(JSONObject g) {
-        JSONArray arr = g.optJSONArray("checkIns"); if (arr == null) return 0;
-        java.util.HashSet<String> days = new java.util.HashSet<>();
-        for (int i=0; i<arr.length(); i++) days.add(arr.optString(i));
+        JSONObject entries = g.optJSONObject("journal");
+        if (entries == null) return 0;
         Calendar c = Calendar.getInstance(); String t=today(), y=yesterday();
-        if (!days.contains(t) && !days.contains(y)) return 0;
-        if (!days.contains(t)) c.add(Calendar.DAY_OF_YEAR,-1);
+        if (!entries.has(t) && !entries.has(y)) return 0;
+        if (!entries.has(t)) c.add(Calendar.DAY_OF_YEAR,-1);
         int count=0;
-        while (true) { String key=new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(c.getTime()); if(!days.contains(key)) break; count++; c.add(Calendar.DAY_OF_YEAR,-1); }
+        while (true) { String key=new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(c.getTime()); if(!entries.has(key)) break; count++; c.add(Calendar.DAY_OF_YEAR,-1); }
         return count;
     }
 }
