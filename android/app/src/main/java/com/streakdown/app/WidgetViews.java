@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.widget.RemoteViews;
 import org.json.JSONObject;
+import org.json.JSONArray;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
@@ -42,6 +43,7 @@ final class WidgetViews {
         String goalId = WidgetStore.goalIdForWidget(c, widgetId);
         JSONObject g = WidgetStore.findGoal(c, goalId);
         if (g == null) {
+            showSubjects(c, v, null);
             v.setTextViewText(R.id.widget_title, "Kairo");
             v.setTextViewText(R.id.widget_streak_icon, "");
             v.setTextViewText(R.id.widget_streak_value, "");
@@ -57,6 +59,7 @@ final class WidgetViews {
             if (open != null) { PendingIntent launch = PendingIntent.getActivity(c, widgetId + 20000, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE); v.setOnClickPendingIntent(R.id.widget_root, launch); v.setOnClickPendingIntent(R.id.widget_title, launch); v.setOnClickPendingIntent(R.id.widget_streak_icon, launch); v.setOnClickPendingIntent(R.id.widget_streak_value, launch); v.setOnClickPendingIntent(R.id.widget_streak_unit, launch); v.setOnClickPendingIntent(R.id.widget_countdown_value, launch); v.setOnClickPendingIntent(R.id.widget_countdown, launch); }
             return v;
         }
+        showSubjects(c, v, g.optJSONArray("subjects"));
         String title = g.optString("title", "Untitled goal");
         int streak = WidgetStore.activeStreak(g);
         String today = WidgetStore.today();
@@ -108,6 +111,30 @@ final class WidgetViews {
         Intent open = c.getPackageManager().getLaunchIntentForPackage(c.getPackageName());
         if(open!=null) { PendingIntent launch = PendingIntent.getActivity(c,widgetId+10000,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE); v.setOnClickPendingIntent(R.id.widget_root,launch); v.setOnClickPendingIntent(R.id.widget_title,launch); v.setOnClickPendingIntent(R.id.widget_streak_icon,launch); v.setOnClickPendingIntent(R.id.widget_streak_value,launch); v.setOnClickPendingIntent(R.id.widget_streak_unit,launch); v.setOnClickPendingIntent(R.id.widget_countdown_value,launch); v.setOnClickPendingIntent(R.id.widget_countdown,launch); }
         return v;
+    }
+    private static void showSubjects(Context context, RemoteViews views, JSONArray subjects) {
+        views.removeAllViews(R.id.widget_subjects);
+        boolean visible = subjects != null && subjects.length() > 0;
+        views.setViewVisibility(R.id.widget_subjects, visible ? android.view.View.VISIBLE : android.view.View.GONE);
+        if (!visible) return;
+        for (int i = 0; i < subjects.length(); i++) {
+            JSONObject subject = subjects.optJSONObject(i);
+            if (subject == null) continue;
+            JSONArray chapters = subject.optJSONArray("chapters");
+            int toCover = 0;
+            int awaiting = 0;
+            for (int j = 0; chapters != null && j < chapters.length(); j++) {
+                JSONObject chapter = chapters.optJSONObject(j);
+                if (chapter == null) continue;
+                JSONArray revisions = chapter.optJSONArray("revisions");
+                if (chapter.optString("coveredAt").isEmpty()) toCover++;
+                else if (revisions == null || revisions.length() == 0) awaiting++;
+            }
+            RemoteViews row = new RemoteViews(context.getPackageName(), R.layout.widget_subject_row);
+            row.setTextViewText(R.id.subject_name, subject.optString("name"));
+            row.setTextViewText(R.id.subject_counts, toCover + " to cover · " + awaiting + " awaiting 1st revision");
+            views.addView(R.id.widget_subjects, row);
+        }
     }
     static void update(Context c, AppWidgetManager m, int[] ids, boolean large) { for(int id:ids) m.updateAppWidget(id,create(c,id,large)); }
     static void refresh(Context c, Class<?> provider, boolean large) { AppWidgetManager m=AppWidgetManager.getInstance(c); int[] ids=m.getAppWidgetIds(new ComponentName(c,provider)); update(c,m,ids,large); }

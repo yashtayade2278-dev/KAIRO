@@ -1,3 +1,4 @@
+import { StudyTracker } from './StudyTracker';
 import React, { useState } from 'react';
 import { Flame, Check, Calendar, Trash2, Edit3, Trophy, Award } from 'lucide-react';
 import {
@@ -264,6 +265,7 @@ export const GoalCard: React.FC<GoalCardProps> = ({
           </div>
         </>
       )}
+      {(!isCompleted || goal.subjects?.length) ? <StudyTracker goal={goal} readOnly={isCompleted} /> : null}
       <details className="border-t border-black/10 pt-3">
         <summary className="cursor-pointer font-semibold">Journey</summary>
         <ol className="divide-y divide-black/10 mt-2">

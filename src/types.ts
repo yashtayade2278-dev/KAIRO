@@ -9,7 +9,21 @@ export interface JournalEntry {
   note: string;
 }
 
+export interface Chapter {
+  id: string;
+  name: string;
+  coveredAt?: string;
+  revisions: string[];
+}
+
+export interface Subject {
+  id: string;
+  name: string;
+  chapters: Chapter[];
+}
+
 export interface Goal {
+  subjects?: Subject[];
   journal?: Record<string, JournalEntry>;
   id: string;
   title: string;

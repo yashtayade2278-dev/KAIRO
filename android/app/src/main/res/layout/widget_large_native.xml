@@ -54,6 +54,10 @@
         android:progressDrawable="@drawable/widget_progress_4" />
   </LinearLayout>
 
+  <LinearLayout android:id="@+id/widget_subjects" android:orientation="vertical"
+      android:visibility="gone" android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:layout_marginBottom="4dp" />
+
   <Button android:id="@+id/widget_checkin" android:layout_width="match_parent" android:layout_height="44dp"
       android:text="Check In" android:textColor="#713E31" android:textStyle="bold" android:textAllCaps="false"
       android:textSize="15sp" android:background="@drawable/widget_button_background" />
