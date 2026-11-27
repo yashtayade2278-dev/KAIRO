@@ -18,9 +18,12 @@ public class LargeWidgetProvider extends AppWidgetProvider {
    }
  }
  @Override public void onEnabled(Context c) { scheduleMidnight(c); }
- @Override public void onUpdate(Context c, AppWidgetManager m, int[] ids) { WidgetViews.update(c,m,ids,true); scheduleMidnight(c); }
- static void updateOne(Context c, AppWidgetManager m, int id) { m.updateAppWidget(id,WidgetViews.create(c,id,true)); }
- static void refreshAll(Context c) { WidgetViews.refresh(c,LargeWidgetProvider.class,true); }
+ @Override public void onUpdate(Context c, AppWidgetManager m, int[] ids) { for (int id : ids) updateOne(c, m, id); scheduleMidnight(c); }
+ @Override public void onAppWidgetOptionsChanged(Context c, AppWidgetManager manager, int id, android.os.Bundle options) {
+   updateOne(c, manager, id);
+ }
+ static void updateOne(Context c, AppWidgetManager m, int id) { m.updateAppWidget(id,WidgetViews.create(c,id)); }
+ static void refreshAll(Context c) { WidgetViews.refresh(c,LargeWidgetProvider.class); }
  // Wake just after local midnight so the widget rolls over to the new day on its own.
  static void scheduleMidnight(Context c) {
    try {

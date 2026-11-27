@@ -3,8 +3,8 @@
     <item>
         <shape android:shape="rectangle">
             <corners android:radius="7dp" />
-            <gradient android:angle="315" android:startColor="#FFD99A" android:centerColor="#FFB8A3" android:endColor="#F4B8D9" />
+            <solid android:color="#243E38" />
         </shape>
     </item>
-    <item android:drawable="@drawable/kairo_orbit_logo" />
+    <item android:drawable="@drawable/kairo_mark" />
 </layer-list>

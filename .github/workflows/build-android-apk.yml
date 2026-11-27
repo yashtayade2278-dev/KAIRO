@@ -1,5 +1,4 @@
-name: Build StreakDown Android APK
-
+name: Build Kairo Journal
 on:
   workflow_dispatch:
   push:
@@ -8,51 +7,93 @@ on:
 permissions:
   contents: read
 
-jobs:
-  build-debug-apk:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v4
+concurrency:
+  group: kairo-journal-build
+  cancel-in-progress: false
 
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - run: npm ci --no-audit --no-fund && npm run build && npx cap sync android
+      - name: Prepare signing identity
+        id: identity
+        env:
+          STORE_PASS: ${{ secrets.KAIRO_SIGNING_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
-
-      - name: Install JavaScript dependencies
-        run: npm install --no-audit --no-fund
-
-      - name: Build web app
-        run: npm run build
-
-      - name: Sync Capacitor Android project
-        run: npx cap sync android
-
-      - name: Build debug APK
+          set -eu
+          umask 077
+          store="$RUNNER_TEMP/kairo.p12"
+          tag=kairo-signing-identity-v1
+          if [ -z "$STORE_PASS" ]; then
+            # For the upgrade test only. Neither build will be offered for installation.
+            STORE_PASS=$(openssl rand -hex 32)
+            distributable=false
+          else
+            test "${#STORE_PASS}" -ge 32
+            distributable=true
+          fi
+          export STORE_PASS
+          if [ "$distributable" = true ] && git ls-remote --exit-code --tags origin "refs/tags/$tag"; then
+            gh release download "$tag" --pattern kairo.p12 --dir "$RUNNER_TEMP"
+          else
+            keytool -genkeypair -alias kairo -storetype PKCS12 -keystore "$store" -storepass:env STORE_PASS -keypass:env STORE_PASS -dname "CN=Kairo Journal" -keyalg RSA -keysize 3072 -validity 18250
+            if [ "$distributable" = true ]; then
+              # A create-only tag reserves the identity. Missing assets or a bad password fail closed on later runs.
+              gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$GITHUB_SHA" >/dev/null
+              gh release create "$tag" "$store" --verify-tag --prerelease --latest=false --title "Kairo signing backup" --notes "Password-encrypted PKCS12 for Kairo Journal. Retain this asset and its password for future Android updates."
+            fi
+          fi
+          keytool -list -keystore "$store" -alias kairo -storepass:env STORE_PASS >/dev/null
+          echo "::add-mask::$STORE_PASS"
+          printf %s "$STORE_PASS" > "$RUNNER_TEMP/kairo-build-password"
+          echo "distributable=$distributable" >> "$GITHUB_OUTPUT"
+      - name: Build consecutive releases
         working-directory: android
         run: |
+          set -eu
+          export KAIRO_KEYSTORE="$RUNNER_TEMP/kairo.p12"
+          export KAIRO_STORE_PASSWORD
+          KAIRO_STORE_PASSWORD=$(cat "$RUNNER_TEMP/kairo-build-password")
+          trap 'rm -f "$KAIRO_KEYSTORE" "$RUNNER_TEMP/kairo-build-password"' EXIT
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
-
-      - name: Upload APK artifact
+          mkdir -p ../build-check
+          export KAIRO_VERSION_CODE=$((GITHUB_RUN_NUMBER * 2))
+          ./gradlew assembleRelease assembleReleaseAndroidTest
+          cp app/build/outputs/apk/release/app-release.apk ../build-check/first.apk
+          cp app/build/outputs/apk/androidTest/release/*.apk ../build-check/test.apk
+          export KAIRO_VERSION_CODE=$((KAIRO_VERSION_CODE + 1))
+          ./gradlew assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk ../build-check/Kairo-Journal.apk
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify side-by-side restore and in-place update on Android 12
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 31
+          arch: x86_64
+          script: bash .github/scripts/check-journal-upgrade.sh
+      - name: Publish verified phone APK
+        if: steps.identity.outputs.distributable == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: StreakDown-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Kairo-Journal
+          path: build-check/Kairo-Journal.apk
           if-no-files-found: error
-          retention-days: 14

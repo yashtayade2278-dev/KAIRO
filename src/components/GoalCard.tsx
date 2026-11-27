@@ -1,5 +1,6 @@
+import { StudyTracker } from './StudyTracker';
 import React, { useState } from 'react';
-import { Flame, Check, Calendar, Trash2, Edit3, Sparkles, Trophy, Award } from 'lucide-react';
+import { Flame, Check, Calendar, Trash2, Edit3, Trophy, Award } from 'lucide-react';
 import {
   Goal,
   calculateDaysRemaining,
@@ -7,6 +8,7 @@ import {
   isGoalCompleted,
   calculateGoalCompletionStats,
   formatDisplayDate,
+  calculateActiveStreak,
 } from '../types.ts';
 
 interface GoalCardProps {
@@ -27,7 +29,7 @@ export const GoalCard: React.FC<GoalCardProps> = ({
   onDelete,
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [justCheckedIn, setJustCheckedIn] = useState(false);
+  const streak = calculateActiveStreak(Object.keys(goal.journal ?? {}), simulatedDate);
 
   const isCompleted = isGoalCompleted(goal, simulatedDate);
   const { days: daysRemaining } = calculateDaysRemaining(
@@ -40,8 +42,7 @@ export const GoalCard: React.FC<GoalCardProps> = ({
   const handleCheckInClick = () => {
     if (checkedInToday || isCompleted) return;
     onCheckIn(goal.id);
-    setJustCheckedIn(true);
-    setTimeout(() => setJustCheckedIn(false), 1200);
+
   };
 
   const cardPalettes = [
@@ -54,14 +55,6 @@ export const GoalCard: React.FC<GoalCardProps> = ({
 
   return (
     <div style={{ background: isCompleted ? 'linear-gradient(135deg, #F1FAF3 0%, #E6F5E8 100%)' : palette.bg, borderColor: isCompleted ? '#CDE8D2' : palette.border, ['--goal-accent' as any]: palette.accent, ['--goal-soft' as any]: palette.soft } as React.CSSProperties} className="kairo-goal-card rounded-[1.75rem] border transition-all p-5 shadow-sm hover:shadow-md flex flex-col gap-5 relative overflow-hidden">
-      {justCheckedIn && (
-        <div className="absolute inset-0 bg-[#F8A7A1]/20 pointer-events-none flex items-center justify-center animate-fade-out">
-          <div className="bg-[#E9784E] text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-md flex items-center gap-1.5 animate-bounce">
-            <Sparkles className="w-3.5 h-3.5" /> Streak Updated!
-          </div>
-        </div>
-      )}
-
       {/* Top Header: Title, Description, and inline Actions */}
       <div>
         <div className="flex items-start justify-between gap-3">
@@ -149,13 +142,13 @@ export const GoalCard: React.FC<GoalCardProps> = ({
             </div>
           </div>
 
-          {/* Stats: Longest Streak and Days Missed */}
+          {/* Stats: Longest journal streak and Days Missed */}
           <div className="grid grid-cols-2 gap-2.5">
-            {/* Longest Streak */}
+            {/* Longest journal streak */}
             <div className="bg-white/65 border border-black/5 rounded-xl p-3 flex flex-col justify-between shadow-2xs">
               <span className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
                 <Flame className="w-4 h-4 text-amber-500 fill-amber-500" />
-                Longest Streak
+                Longest journal streak
               </span>
               <div className="mt-1.5 flex items-baseline gap-1.5">
                 <span className="text-2xl font-black text-amber-600 tabular-nums">
@@ -199,7 +192,7 @@ export const GoalCard: React.FC<GoalCardProps> = ({
           </div>
         </div>
       ) : (
-        /* Regular Active Goal: Countdown, Current Streak, and Check In Button */
+        /* Regular Active Goal: Countdown, Journal streak, and Check In Button */
         <>
           <div className="grid grid-cols-2 gap-5 pt-4 border-t border-black/10 items-stretch">
             {/* Days Remaining / Target Date */}
@@ -216,34 +209,34 @@ export const GoalCard: React.FC<GoalCardProps> = ({
               </span>
             </div>
 
-            {/* Current Streak */}
+            {/* Journal streak */}
             <div className="flex flex-col min-w-0">
-              <span className="text-sm font-semibold leading-6 min-h-6 text-slate-600">Current Streak</span>
+              <span className="text-sm font-semibold leading-6 min-h-6 text-slate-600">Journal streak</span>
               <div className="flex items-center gap-2 mt-2 min-h-8">
                 <Flame
                   className={`w-4 h-4 shrink-0 transition-transform ${
-                    goal.currentStreak > 0
+                    streak > 0
                       ? 'text-amber-500 fill-amber-500 scale-105'
                       : 'text-slate-300'
                   }`}
                 />
                 <span
                   className={`text-xl font-bold tabular-nums leading-7 ${
-                    goal.currentStreak > 0 ? 'text-amber-600' : 'text-slate-400'
+                    streak > 0 ? 'text-amber-600' : 'text-slate-400'
                   }`}
                 >
-                  {goal.currentStreak}
+                  {streak}
                 </span>
                 <span className="text-xs font-medium text-slate-600">
-                  {goal.currentStreak === 1 ? 'day' : 'days'}
+                  {streak === 1 ? 'day' : 'days'}
                 </span>
               </div>
               <span className="text-xs text-slate-600 mt-2 min-h-[2.5rem] leading-5 break-words">
                 {checkedInToday
                   ? 'Checked in for today'
-                  : goal.currentStreak > 0
+                  : streak > 0
                   ? 'Check in to keep streak'
-                  : 'Missed check-in · Check in restarts at 1'}
+                  : 'Save a reflection to start your streak'}
               </span>
             </div>
           </div>
@@ -265,15 +258,31 @@ export const GoalCard: React.FC<GoalCardProps> = ({
               >
                 <Flame className="w-4 h-4" style={{ color: "var(--goal-accent)" }} />
                 <span>
-                  {goal.currentStreak === 0
-                    ? 'Check In (Restart at 1)'
-                    : 'Check In'}
+                  Check In
                 </span>
               </button>
             )}
           </div>
         </>
       )}
+      {(!isCompleted || goal.subjects?.length) ? <StudyTracker goal={goal} readOnly={isCompleted} /> : null}
+      <details className="border-t border-black/10 pt-3">
+        <summary className="cursor-pointer font-semibold">Journey</summary>
+        <ol className="divide-y divide-black/10 mt-2">
+          {Object.entries(goal.journal ?? {}).sort(([a], [b]) => b.localeCompare(a)).map(([date, entry]) => (
+            <li key={date} className="py-3">
+              <time className="text-xs">{formatDisplayDate(date)}</time>
+              <p className="font-semibold">{entry.outcome}</p>
+              <p className="whitespace-pre-wrap break-words select-text">{entry.note}</p>
+            </li>
+          ))}
+        </ol>
+        {!Object.keys(goal.journal ?? {}).length && <p className="text-sm">Your first reflection will appear here.</p>}
+        {goal.checkIns.length > 0 && <details className="mt-3 text-sm">
+          <summary>Earlier check-ins ({goal.checkIns.length})</summary>
+          <ul>{[...goal.checkIns].sort().reverse().map(date => <li key={date}>{formatDisplayDate(date)}</li>)}</ul>
+        </details>}
+      </details>
     </div>
   );
 };
