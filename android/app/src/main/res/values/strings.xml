@@ -1,9 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Kairo</string>
-    <string name="title_activity_main">Kairo</string>
-    <string name="package_name">com.streakdown.app</string>
-    <string name="custom_url_scheme">com.streakdown.app</string>
+    <string name="app_name">Kairo Journal</string>
+    <string name="title_activity_main">Kairo Journal</string>
+    <string name="package_name">com.kairo.journal</string>
+    <string name="custom_url_scheme">com.kairo.journal</string>
     <string name="widget_label_large">Kairo · Card</string>
     <string name="widget_description">Your countdown and journal streak. Enlarge the widget to see subject progress.</string>
 </resources>

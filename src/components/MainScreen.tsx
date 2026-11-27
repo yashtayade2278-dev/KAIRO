@@ -1,3 +1,4 @@
+import { RestoreBackup } from './RestoreBackup';
 import React, { useState } from 'react';
 import { Plus, Target } from 'lucide-react';
 import { Goal } from '../types.ts';
@@ -52,6 +53,7 @@ export const MainScreen: React.FC<MainScreenProps> = ({
         ) : (
           goals.map((goal, index) => <GoalCard key={goal.id} goal={goal} colorIndex={index} simulatedDate={simulatedDate} onCheckIn={onCheckIn} onEdit={(g) => { setEditingGoal(g); setIsModalOpen(true); }} onDelete={onDeleteGoal} />)
         )}
+        <RestoreBackup />
       </main>
 
       <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] right-5 z-40">
