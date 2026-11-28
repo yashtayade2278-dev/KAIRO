@@ -102,7 +102,7 @@ final class WidgetViews {
         JSONArray subjects = goal.optJSONArray("subjects");
         if (layout == Layout.EXPANDED && subjects != null && subjects.length() > 0) {
             v.setViewVisibility(R.id.widget_subjects, View.VISIBLE);
-            addRow(c, v, "Subject", "To cover", "Awaiting 1st rev.");
+            addRow(c, v, "Subject", "To cover", "1st rev. due");
             for (int i = 0; i < subjects.length(); i++) {
                 JSONObject subject = subjects.optJSONObject(i);
                 if (subject == null) continue;
